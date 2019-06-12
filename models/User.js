@@ -13,6 +13,12 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  secretToken: {
+    type: String,
+  },
+  active: {
+    type: Boolean,
+  },
   date: {
     type: Date,
     default: Date.now,

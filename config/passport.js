@@ -11,6 +11,7 @@ module.exports = function (passport) {
       // Match User
       User.findOne({ email })
         .then((user) => {
+          // Check if email already exists
           if (!user) {
             return done(null, false, { message: 'That email is not registered' });
           }
@@ -20,9 +21,15 @@ module.exports = function (passport) {
             if (err) throw err;
 
             if (isMatch) {
+              // If user account has not been verified
+              if (!user.active) {
+                return done(null, false, { message: 'Please verify your account by e-mail first' });
+              }
+              // Account verified
               return done(null, user);
             }
-            return done(null, false, { message: 'Password incoorect' });
+            // Incorrect password
+            return done(null, false, { message: 'Password incorrect' });
           });
         })
         .catch(err => console.log(err));

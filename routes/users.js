@@ -3,6 +3,10 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
+const randomstring = require('randomstring');
+const { ensureNotAuthenticated } = require('../config/auth');
+
+const mailer = require('../misc/mailer');
 
 // User model
 const User = require('../models/User');
@@ -73,10 +77,35 @@ router.post('/register', (req, res) => {
             if (err) throw err;
             // Set password to hashed
             newUser.password = hash;
+
+            // Set secret token
+            const secretToken = randomstring.generate();
+            newUser.secretToken = secretToken;
+
+            // Flag the account as inactive
+            newUser.active = false;
+
             // Save user
             newUser.save()
               .then((user) => {
-                req.flash('success_msg', 'You are now registered and can log in');
+                // Compose an email
+                const html = `Hi there,
+                  <br/>
+                  THank you for registering!
+                  <br/><br/>
+                  Please verify your email by typing the following token:
+                  <br/>
+                  Token: <b>${secretToken}</b>
+                  <br/>
+                  On the following page:
+                  <a href="http://localhost:5000/users/verify">http://localhost:5000/users/verify</a>
+                  <br/><br/>
+                  Have a pleasant day!`;
+
+                // Send the email
+                mailer.sendEmail('admin@spongebob.com', newUser.email, 'Please verify your email!', html);
+
+                req.flash('success_msg', 'An activation e-mail has been sent to you. You must activate before you can log in');
                 res.redirect('login');
               })
               .catch(err => console.log(err));
@@ -84,6 +113,33 @@ router.post('/register', (req, res) => {
         }
       });
   }
+});
+
+// Verify Page
+router.get('/verify', ensureNotAuthenticated, (req, res) => {
+  res.render('verify');
+});
+
+router.post('/verify', (req, res) => {
+  const { secretToken } = req.body;
+  // Find the account that matches the secret token
+  User.findOne({ secretToken })
+    .then((user) => {
+      if (!user) {
+        req.flash('error_msg', 'No user found');
+        res.redirect('/users/verify');
+        return;
+      }
+      const userFound = user;
+      userFound.active = true;
+      userFound.secretToken = '';
+      userFound.save()
+        .then((userFound) => {
+          req.flash('success_msg', 'E-mail confirmed. You may now login.');
+          res.redirect('/users/login');
+        })
+        .catch(err => console.log(err));
+    });
 });
 
 // Login Handle
