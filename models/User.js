@@ -13,11 +13,23 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  secretToken: {
+  tokenEmail: {
     type: String,
+  },
+  tokenEmailExpires: {
+    type: Date,
   },
   active: {
     type: Boolean,
+  },
+  tokenRemember: {
+    type: String,
+  },
+  tokenForgot: {
+    type: String,
+  },
+  tokenForgotExpires: {
+    type: Date,
   },
   date: {
     type: Date,

@@ -1,11 +1,13 @@
 const nodemailer = require('nodemailer');
-const config = require('../config/mailer');
+
+// DOTENV
+require('dotenv').config();
 
 const transport = nodemailer.createTransport({
   service: 'SendGrid',
   auth: {
-    user: config.SENDGRID_USER,
-    pass: config.SENDGRID_PASS,
+    user: process.env.sendgrid_user,
+    pass: process.env.sendgrid_pass,
   },
 });
 

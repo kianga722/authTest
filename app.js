@@ -2,6 +2,7 @@ const express = require('express');
 const expressLayouts = require('express-ejs-layouts');
 const mongoose = require('mongoose');
 const flash = require('connect-flash');
+const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const passport = require('passport');
 
@@ -11,7 +12,9 @@ const app = express();
 require('./config/passport')(passport);
 
 // DB Config
-const db = require('./config/keys').MongoURI;
+require('dotenv').config();
+
+const db = process.env.mongoURI;
 
 // Connect to Mongo
 mongoose.connect(db, { useNewUrlParser: true })
@@ -24,6 +27,8 @@ app.set('view engine', 'ejs');
 
 // Bodyparser
 app.use(express.urlencoded({ extended: false }));
+// Cookie Parser
+app.use(cookieParser());
 
 // Express Session
 app.use(session({
@@ -35,6 +40,7 @@ app.use(session({
 // Passport middleware
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(passport.authenticate('remember-me'));
 
 // Connect flash
 app.use(flash());
