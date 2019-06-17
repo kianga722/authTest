@@ -7,8 +7,6 @@ const randomstring = require('randomstring');
 
 // Authenticated methods
 const { ensureAuthenticated, ensureNotAuthenticated } = require('../config/auth');
-// Remember Me methods
-const { saveRememberToken } = require('../config/remember');
 
 const mailer = require('../misc/mailer');
 
@@ -353,16 +351,6 @@ router.post('/reset/:token', (req, res) => {
     });
 });
 
-
-// For Remember Me tokens
-const issueToken = (user, done) => {
-  const token = randomstring.generate();
-  saveRememberToken(token, user._id, (err) => {
-    if (err) { return done(err); }
-    return done(null, token);
-  });
-};
-
 // Login Handle
 router.post('/login',
   passport.authenticate('local', {
@@ -373,11 +361,21 @@ router.post('/login',
     // Issue a remember me cookie if the option was checked
     if (!req.body.remember) { return next(); }
 
-    issueToken(req.user, (err, token) => {
-      if (err) { return next(err); }
-      res.cookie('remember_me', token, { path: '/', httpOnly: true, maxAge: 604800000 });
-      return next();
-    });
+    const token = randomstring.generate();
+
+    User.findOne({ _id: req.user._id })
+      .then((user) => {
+        if (user) {
+          const userFound = user;
+          userFound.tokenRemember = token;
+          userFound.save()
+            .then((userSaved) => {
+              res.cookie('remember_me', token, { path: '/', httpOnly: true, maxAge: 604800000 }); // 7 days
+              return next();
+            })
+            .catch(err => console.log(err));
+        }
+      });
   },
   (req, res) => {
     res.redirect('/dashboard');

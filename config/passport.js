@@ -7,8 +7,6 @@ const RememberMeStrategy = require('passport-remember-me').Strategy;
 
 // Load User Model
 const User = require('../models/User');
-// Remember Me methods
-const { consumeRememberToken, saveRememberToken } = require('../config/remember');
 
 module.exports = function (passport) {
   passport.use(
@@ -41,22 +39,28 @@ module.exports = function (passport) {
     }),
   );
 
-
   passport.use(
     new RememberMeStrategy(
-      (token, done) => {
-        consumeRememberToken(token, (err, user) => {
-          if (err) { return done(err); }
-          if (!user) { return done(null, false); }
-          return done(null, user);
-        });
+      async (token, done) => {
+        const userFound = await User.findOne({ tokenRemember: token });
+        if (userFound) {
+          userFound.tokenRemember = undefined;
+          await userFound.save();
+          await done(null, userFound);
+          return;
+        }
+        await done(null, userFound);
       },
-      (user, done) => {
+      async (user, done) => {
         const token = randomstring.generate();
-        saveRememberToken(token, user._id, (err) => {
-          if (err) { return done(err); }
-          return done(null, token);
-        });
+        const userFound = await User.findOne({ _id: user._id });
+        if (userFound) {
+          userFound.tokenRemember = token;
+          await userFound.save();
+          await done(null, token);
+          return;
+        }
+        await done(null, token);
       },
     ),
   );
