@@ -6,7 +6,7 @@ module.exports = {
       .then((user) => {
         if (user) {
           const userFound = user;
-          userFound.tokenRemember = '';
+          userFound.tokenRemember = undefined;
           userFound.save()
             .then(userSaved => fn(null, user))
             .catch(err => console.log(err));
