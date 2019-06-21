@@ -3,14 +3,14 @@ module.exports = {
     if (req.isAuthenticated()) {
       return next();
     }
-    req.flash('error_msg', 'Please log in to view this resource');
+    //req.flash('error_msg', 'Please log in to view this resource');
     res.redirect('/users/login');
   },
   ensureNotAuthenticated(req, res, next) {
     if (!req.isAuthenticated()) {
       return next();
     }
-    req.flash('error_msg', 'Cannot view this resource while logged in');
+    //req.flash('error_msg', 'Cannot view this resource while logged in');
     res.redirect('/dashboard');
   },
 };

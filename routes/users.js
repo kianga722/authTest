@@ -5,8 +5,11 @@ const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const randomstring = require('randomstring');
 
+// jwt
+const jwt = require('jsonwebtoken');
+
 // Authenticated methods
-const { ensureAuthenticated, ensureNotAuthenticated } = require('../config/auth');
+// const { ensureAuthenticated, ensureNotAuthenticated } = require('../config/auth');
 
 const mailer = require('../misc/mailer');
 
@@ -14,14 +17,35 @@ const mailer = require('../misc/mailer');
 const User = require('../models/User');
 
 // Login Page
+/*
 router.get('/login', ensureNotAuthenticated, (req, res) => {
   res.render('login');
 });
+*/
+router.get('/login', (req, res, next) => {
+  passport.authenticate('jwt', { session: false },
+    (err, user, info) => {
+      if (err) { return next(err); }
+      if (!user) { return res.render('login'); }
+      return res.redirect('/dashboard');
+    })(req, res, next);
+});
 
 // Register Page
+/*
 router.get('/register', ensureNotAuthenticated, (req, res) => {
   res.render('register');
 });
+*/
+router.get('/register', (req, res, next) => {
+  passport.authenticate('jwt', { session: false },
+    (err, user, info) => {
+      if (err) { return next(err); }
+      if (!user) { return res.render('register'); }
+      return res.redirect('/dashboard');
+    })(req, res, next);
+});
+
 
 // Register Handle
 router.post('/register', (req, res) => {
@@ -100,7 +124,7 @@ router.post('/register', (req, res) => {
                 // Send the email
                 mailer.sendEmail('admin@spongebob.com', newUser.email, 'Please verify your email!', html);
 
-                req.flash('success_msg', 'An activation e-mail has been sent to you. You must activate before you can log in');
+                // req.flash('success_msg', 'An activation e-mail has been sent to you. You must activate before you can log in');
                 res.redirect('login');
               })
               .catch(err => console.log(err));
@@ -111,10 +135,11 @@ router.post('/register', (req, res) => {
 });
 
 // Verify Email Page
+/*
 router.get('/verify/:token', ensureNotAuthenticated, (req, res) => {
   const tokenEmail = req.params.token;
   if (tokenEmail === '' || tokenEmail === undefined) {
-    req.flash('error_msg', 'Activation link is invalid or has expired');
+    // req.flash('error_msg', 'Activation link is invalid or has expired');
     res.redirect('/users/resend');
     return;
   }
@@ -126,7 +151,7 @@ router.get('/verify/:token', ensureNotAuthenticated, (req, res) => {
   })
     .then((user) => {
       if (!user) {
-        req.flash('error_msg', 'Activation link is invalid or has expired');
+        // req.flash('error_msg', 'Activation link is invalid or has expired');
         res.redirect('/users/resend');
         return;
       }
@@ -140,18 +165,125 @@ router.get('/verify/:token', ensureNotAuthenticated, (req, res) => {
             if (err) {
               console.log(err);
             }
-            req.flash('success_msg', `E-mail confirmed. Welcome ${user.name}!`);
+            // req.flash('success_msg', `E-mail confirmed. Welcome ${user.name}!`);
             res.redirect('/dashboard');
           });
         })
         .catch(err => console.log(err));
     });
 });
+*/
+/*
+router.get('/verify/:token', (req, res, next) => {
+  passport.authenticate('jwt', { session: false },
+     (err, user, info) => {
+      if (err) { return next(err); }
+      if (!user) {
+        const tokenEmail = req.params.token;
+        if (tokenEmail === '' || tokenEmail === undefined) {
+          // req.flash('error_msg', 'Activation link is invalid or has expired');
+          return res.redirect('/users/resend');
+        }
+
+        // Find the account that matches the secret token
+        User.findOne({
+          tokenEmail,
+          tokenEmailExpires: { $gt: Date.now() },
+        })
+          .then((user) => {
+            if (!user) {
+              // req.flash('error_msg', 'Activation link is invalid or has expired');
+              return res.redirect('/users/resend');
+            }
+            const userFound = user;
+            userFound.active = true;
+            userFound.tokenEmail = undefined;
+            userFound.tokenEmailExpires = undefined;
+            userFound.save()
+              .then((userActive) => {
+                const userid = userActive._id;
+                req.login(userid, { session: false }, (err) => {
+                  if (err) {
+                    res.send(err);
+                  }
+                  const payload = {
+                    id: userid,
+                  };
+
+                  // generate a signed json web token with the contents of user object and return it in the response
+                  const token = jwt.sign(JSON.stringify(payload), 'your_jwt_secret');
+
+                  // assign our jwt to the cookie
+                  res.cookie('jwt', token, { httpOnly: true });
+                  // res.status(200).send({ userid });
+                  return res.redirect('/dashboard');
+                });
+              })
+              .catch(err => console.log(err));
+          });
+      }
+      return res.redirect('/dashboard');
+    })(req, res, next);
+});
+*/
+router.get('/verify/:token', (req, res, next) => {
+  passport.authenticate('jwt', { session: false },
+    async (err, user, info) => {
+      if (err) { return next(err); }
+      if (!user) {
+        const tokenEmail = req.params.token;
+        if (tokenEmail === '' || tokenEmail === undefined) {
+          // req.flash('error_msg', 'Activation link is invalid or has expired');
+          return res.redirect('/users/resend');
+        }
+
+        // Find the account that matches the secret token
+        const userFound = await User.findOne({
+          tokenEmail,
+          tokenEmailExpires: { $gt: Date.now() },
+        });
+        if (!userFound) {
+          // req.flash('error_msg', 'Activation link is invalid or has expired');
+          return res.redirect('/users/resend');
+        }
+        userFound.active = true;
+        userFound.tokenEmail = undefined;
+        userFound.tokenEmailExpires = undefined;
+        const userSave = await userFound.save();
+        const userid = userSave._id;
+
+        const payload = {
+          id: userid,
+        };
+
+        // generate a signed json web token with the contents of user object and return it in the response
+        const token = jwt.sign(JSON.stringify(payload), 'your_jwt_secret');
+
+        // assign our jwt to the cookie
+        res.cookie('jwt', token, { httpOnly: true });
+        // res.status(200).send({ userid });
+        return res.redirect('/dashboard');
+      }
+      return res.redirect('/users/resend');
+    })(req, res, next);
+});
+
 
 // Resend Activation Email Page
+/*
 router.get('/resend', ensureNotAuthenticated, (req, res) => {
   res.render('resend');
 });
+*/
+router.get('/resend', (req, res, next) => {
+  passport.authenticate('jwt', { session: false },
+    (err, user, info) => {
+      if (err) { return next(err); }
+      if (!user) { return res.render('resend'); }
+      return res.redirect('/dashboard');
+    })(req, res, next);
+});
+
 
 router.post('/resend', (req, res) => {
   const { email } = req.body;
@@ -160,14 +292,14 @@ router.post('/resend', (req, res) => {
     .then((user) => {
       // If no user found
       if (!user) {
-        req.flash('error_msg', 'Email is invalid');
+        // req.flash('error_msg', 'Email is invalid');
         res.redirect('resend');
         return;
       }
 
       // If user already active
       if (user.active) {
-        req.flash('error_msg', 'User already active!');
+        // req.flash('error_msg', 'User already active!');
         res.redirect('resend');
         return;
       }
@@ -194,7 +326,7 @@ router.post('/resend', (req, res) => {
           // Send the email with new token
           mailer.sendEmail('admin@spongebob.com', userFound.email, 'Activation email resend request', html);
 
-          req.flash('success_msg', `Another activation e-mail has been sent to ${userFound.email}`);
+          // req.flash('success_msg', `Another activation e-mail has been sent to ${userFound.email}`);
           res.redirect('resend');
         })
         .catch(err => console.log(err));
@@ -202,9 +334,20 @@ router.post('/resend', (req, res) => {
 });
 
 // Forgot Password Page
+/*
 router.get('/forgot', ensureNotAuthenticated, (req, res) => {
   res.render('forgot');
 });
+*/
+router.get('/forgot', (req, res, next) => {
+  passport.authenticate('jwt', { session: false },
+    (err, user, info) => {
+      if (err) { return next(err); }
+      if (!user) { return res.render('forgot'); }
+      return res.redirect('/dashboard');
+    })(req, res, next);
+});
+
 
 router.post('/forgot', (req, res) => {
   const { email } = req.body;
@@ -213,7 +356,7 @@ router.post('/forgot', (req, res) => {
     .then((user) => {
       // If no user found
       if (!user) {
-        req.flash('error_msg', 'Email is invalid');
+        // req.flash('error_msg', 'Email is invalid');
         res.redirect('forgot');
         return;
       }
@@ -240,7 +383,7 @@ router.post('/forgot', (req, res) => {
           // Send the email with new token
           mailer.sendEmail('admin@spongebob.com', userFound.email, 'Password Reset Request', html);
 
-          req.flash('success_msg', `A password reset e-mail has been sent to ${userFound.email}`);
+          // req.flash('success_msg', `A password reset e-mail has been sent to ${userFound.email}`);
           res.redirect('forgot');
         })
         .catch(err => console.log(err));
@@ -248,10 +391,11 @@ router.post('/forgot', (req, res) => {
 });
 
 // Reset Password Page
+/*
 router.get('/reset/:token', ensureNotAuthenticated, (req, res) => {
   const tokenForgot = req.params.token;
   if (tokenForgot === '' || tokenForgot === undefined) {
-    req.flash('error_msg', 'Password Reset link is invalid or has expired');
+    // req.flash('error_msg', 'Password Reset link is invalid or has expired');
     res.redirect('/users/forgot');
     return;
   }
@@ -263,7 +407,7 @@ router.get('/reset/:token', ensureNotAuthenticated, (req, res) => {
   })
     .then((user) => {
       if (!user) {
-        req.flash('error_msg', 'Password Reset link is invalid or has expired');
+        // req.flash('error_msg', 'Password Reset link is invalid or has expired');
         res.redirect('/users/forgot');
         return;
       }
@@ -272,6 +416,67 @@ router.get('/reset/:token', ensureNotAuthenticated, (req, res) => {
         tokenForgot,
       });
     });
+});
+*/
+/*
+router.get('/reset/:token', (req, res, next) => {
+  passport.authenticate('jwt', { session: false },
+    (err, user, info) => {
+      if (err) { return next(err); }
+      if (!user) {
+        const tokenForgot = req.params.token;
+        if (tokenForgot === '' || tokenForgot === undefined) {
+          // req.flash('error_msg', 'Password Reset link is invalid or has expired');
+          return res.redirect('/users/forgot');
+        }
+
+        // Find the account that matches the secret token
+        User.findOne({
+          tokenForgot,
+          tokenForgotExpires: { $gt: Date.now() },
+        })
+          .then((userFound) => {
+            if (!userFound) {
+              // req.flash('error_msg', 'Password Reset link is invalid or has expired');
+              return res.redirect('/users/forgot');
+            }
+            return res.render('reset', {
+              email: userFound.email,
+              tokenForgot,
+            });
+          });
+      }
+      return res.redirect('/dashboard');
+    })(req, res, next);
+});
+*/
+router.get('/reset/:token', (req, res, next) => {
+  passport.authenticate('jwt', { session: false },
+    async (err, user, info) => {
+      if (err) { return next(err); }
+      if (!user) {
+        const tokenForgot = req.params.token;
+        if (tokenForgot === '' || tokenForgot === undefined) {
+          // req.flash('error_msg', 'Password Reset link is invalid or has expired');
+          return res.redirect('/users/forgot');
+        }
+
+        // Find the account that matches the secret token
+        const userFound = await User.findOne({
+          tokenForgot,
+          tokenForgotExpires: { $gt: Date.now() },
+        });
+        if (!userFound) {
+          // req.flash('error_msg', 'Password Reset link is invalid or has expired');
+          return res.redirect('/users/forgot');
+        }
+        return res.render('reset', {
+          email: userFound.email,
+          tokenForgot,
+        });
+      }
+      return res.redirect('/dashboard');
+    })(req, res, next);
 });
 
 router.post('/reset/:token', (req, res) => {
@@ -283,7 +488,7 @@ router.post('/reset/:token', (req, res) => {
   })
     .then((user) => {
       if (!user) {
-        req.flash('error_msg', 'Password Reset link is invalid or has expired');
+        // req.flash('error_msg', 'Password Reset link is invalid or has expired');
         res.redirect('/users/forgot');
         return;
       }
@@ -342,7 +547,7 @@ router.post('/reset/:token', (req, res) => {
               // Send the email
               mailer.sendEmail('admin@spongebob.com', userEdit.email, 'Your password has been changed', html);
 
-              req.flash('success_msg', 'Success! Your password has been changed.');
+              // req.flash('success_msg', 'Success! Your password has been changed.');
               res.redirect('/users/login');
             })
             .catch(err => console.log(err));
@@ -352,7 +557,40 @@ router.post('/reset/:token', (req, res) => {
 });
 
 // Login Handle
-router.post('/login',
+router.post('/login', (req, res, next) => {
+  passport.authenticate('local', { session: false }, (err, user) => {
+    if (err || !user) {
+      return res.status(400).json({
+        message: 'Something is not right',
+      });
+    }
+
+    const userid = user._id;
+
+    req.login(userid, { session: false }, (err) => {
+      if (err) {
+        res.send(err);
+      }
+      const payload = {
+        id: userid,
+      };
+
+      // generate a signed json web token with the contents of user object and return it in the response
+      const token = jwt.sign(JSON.stringify(payload), 'your_jwt_secret');
+
+      // assign our jwt to the cookie
+      if (!req.body.remember) {
+        res.cookie('jwt', token, { httpOnly: true });
+      } else {
+        res.cookie('jwt', token, { httpOnly: true, maxAge: 604800000 });
+      }
+      // res.status(200).send({ userid });
+      res.redirect('/dashboard');
+    });
+  })(req, res);
+});
+
+/*
   passport.authenticate('local', {
     failureRedirect: '/users/login',
     failureFlash: true,
@@ -379,16 +617,38 @@ router.post('/login',
   },
   (req, res) => {
     res.redirect('/dashboard');
-  });
+  }
+);
+*/
 
 // Logout Handle
+/*
 router.get('/logout', ensureAuthenticated, (req, res) => {
   // clear the remember me cookie when logging out
   res.clearCookie('remember_me');
+  res.clearCookie('jwt');
 
   req.logout();
-  req.flash('success_msg', 'You are logged out');
+  // req.flash('success_msg', 'You are logged out');
   res.redirect('login');
+});
+*/
+router.get('/logout', (req, res, next) => {
+  passport.authenticate('jwt', { session: false }, (err, user) => {
+    if (err || !user) {
+      return res.status(400).json({
+        message: 'Something is not right',
+      });
+    }
+
+    // clear the remember me cookie when logging out
+    // res.clearCookie('remember_me');
+    res.clearCookie('jwt');
+
+    req.logout();
+    // req.flash('success_msg', 'You are logged out');
+    res.redirect('login');
+  })(req, res);
 });
 
 module.exports = router;

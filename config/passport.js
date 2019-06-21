@@ -5,6 +5,12 @@ const randomstring = require('randomstring');
 const LocalStrategy = require('passport-local').Strategy;
 const RememberMeStrategy = require('passport-remember-me').Strategy;
 
+// jwt
+const passportJWT = require('passport-jwt');
+
+const JWTStrategy = passportJWT.Strategy;
+const ExtractJWT = passportJWT.ExtractJwt;
+
 // Load User Model
 const User = require('../models/User');
 
@@ -40,6 +46,24 @@ module.exports = function (passport) {
   );
 
   passport.use(
+    new JWTStrategy({
+      jwtFromRequest: req => req.cookies.jwt,
+      secretOrKey: 'your_jwt_secret',
+    },
+    (jwtPayload, done) => {
+      User.findOne({ _id: jwtPayload.id }, (err, user) => {
+        if (err) {
+          return done(err, false);
+        }
+        if (user) {
+          return done(null, user);
+        }
+        return done(null, false);
+      });
+    }),
+  );
+  /*
+  passport.use(
     new RememberMeStrategy(
       async (token, done) => {
         const userFound = await User.findOne({ tokenRemember: token });
@@ -64,6 +88,7 @@ module.exports = function (passport) {
       },
     ),
   );
+  */
 
   passport.serializeUser((user, done) => {
     done(null, user.id);
